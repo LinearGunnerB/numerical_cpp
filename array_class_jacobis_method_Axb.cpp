@@ -298,6 +298,7 @@ Array Jacobi(Array& A, Array& x0, Array& b, int N=10, double tol=1e-4)
 Array GuassSidel(Array& A, Array& x0, Array& b, int N=10, double tol=1e-4)
 {
     // Guass-Sidel Method
+    // Finish Later
     cout << "\nGuass-Sidel Method:" << endl;
     
     // Check if x0, b, and A are correct shape, if not then transpose 
@@ -366,7 +367,7 @@ int main(int argc, char * argv[])
 {
     // Reference: from https://stackoverflow.com/questions/2076624/c-matrix-class
     cout << "Starting program!" << endl;
-    Array A(4,4);  
+    Array A(4,4); 
     cout << A.get_rows() << endl;
     cout << A.get_cols() << endl;
     
