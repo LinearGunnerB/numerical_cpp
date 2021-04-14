@@ -1,4 +1,8 @@
 # numerical_cpp
+#1
+Poisson Equation Solver with many new features of C++11 and Matrix Template Library 4
+
+#2
 Solved a system of linear equations without using the Standard Template Library
 Basically my own vector class (although named it array), with some aspects like 
 resizing, {} intialization, fill, etc that have analogues in STL.
