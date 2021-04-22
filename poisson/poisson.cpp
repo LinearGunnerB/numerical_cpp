@@ -8,6 +8,8 @@
 //#define MTL_WITH_DEFAULTIMPL 1
 
 #include <cmath>
+#include<string>
+#include <fstream>
 #include <iostream>
 #include <list>
 #include <iterator>
@@ -33,6 +35,60 @@ using std::find;
 using std::begin;
 using std::end;
 using std::pow;
+
+
+
+void save(std::string fname, std::vector<std::vector<double>>& Wfinal) {
+    // std:cout << str1 << std::endl;  //test string input
+    std::ofstream myfile (fname, std::ios::out);
+    //myfile << line;
+    int rows = Wfinal.size();
+    int cols = Wfinal[0].size();
+    for (int i=0; i < rows ; i++ )  {
+        for (int j=0; j < cols ; j++ )  {
+            myfile << Wfinal[i][j];
+            myfile << " ";
+            if ( j == cols-1  ) {
+                myfile << std::endl;
+            }
+        }
+    }
+    myfile.close();
+}
+
+int getLabel(int i, int j, int m, int n)
+{
+    int l = i + (m-1-j)*(n-1) - 1;  //-1 for zero indexing
+    return l;
+}
+
+void build_matrix_solution(std::vector<std::vector<double>>& W_boundaryMatrix, dense_vector<double>& solnVector)
+{
+    //int n = num_rows(W_boundaryMatrix) - 1;
+    //int m = num_cols(W_boundaryMatrix) - 1;
+    int n = W_boundaryMatrix.size() - 1;
+    int m = W_boundaryMatrix[0].size() - 1;
+
+    cout << "n , m: " << n << " , " <<  m << endl;
+    cout << " rows W : " << num_rows(W_boundaryMatrix) << endl;
+    cout << " cols W : " << num_cols(W_boundaryMatrix) << endl;
+    //int l;
+    //for (int i=n-1; i >= 1; i-- )   {
+    //    for (int j=m-1; j >= 1; j--)   {
+    //        l = getLabel(i,j, m, n);
+    //        cout << "l ( << " << i << "," <<  j << ") :  " << l << endl;
+    //        W_boundaryMatrix[i][j] = solnVector[ l ];
+    //    }
+    //}
+    int k = 0;
+    for (int i=1; i <= n -1; i++)  {
+        for (int j=1; j <= m-1; j++)  {
+            W_boundaryMatrix[i][j] = solnVector[ k ];
+            k++;
+        }
+    }
+}
+
 
 void calc_l(int n, int m)
 {
@@ -240,11 +296,27 @@ class sinax_f
 
         const T operator() (const T& x)
         {
-            return sin(x);
+            return a*sin(x);
         }
     private:
         T a;
 };
+
+//250 sin( ( x^2 + y ^2)) 
+template<typename T>
+class sin_x2_y2_f
+{
+    public:
+        sin_x2_y2_f(T a) : a(a) {}
+
+        const T operator() (const T& x, const T& y)
+        {
+            return a*sin(x*x + y*y);
+        }
+    private:
+    T a;
+};
+
 
 template <typename T>
 class constant_f
@@ -266,7 +338,11 @@ class U0y
     public:
     const double operator() (const double& x, const double& y)
     {
-        return 0;
+        if (x < 0.1 || x > 0.1 )
+            return 50*sin(x) / x;
+        else
+            return 0.0;
+        //return 0;
     }
 };
 
@@ -456,6 +532,7 @@ class poisson_dif_eqn_f
     public:
         using VI = std::vector<int>;
         using VVI = std::vector<std::vector<int> >;
+        //std::vector<std::vector<T>> W;
         //using predicate = std::function<rhs2D_f>;
         poisson_dif_eqn_f( const rhs2D_f f, std::vector<T>& x, std::vector<T>& y, int n=4, int m=4, std::vector<int>& bidx={0}, T h=0.125, T k=0.125) : _f(f), x(x), y(y), _n(n), _m(m), _h(h), _k(k), bidx(bidx)
         {
@@ -466,7 +543,7 @@ class poisson_dif_eqn_f
             auto bottom = Ux0();
             auto top =  Uxb();
             auto right = Udy();
-            auto W = build_W<U0y, Ux0, Uxb, Udy>(left, bottom, top, right);
+            W = build_W<U0y, Ux0, Uxb, Udy>(left, bottom, top, right);
 
             poissonIdx pidx( {0,_n},{0,_m}, constants );
 
@@ -568,6 +645,11 @@ class poisson_dif_eqn_f
         std::vector<T> get_const()
         {
             return constants;
+        }
+
+        std::vector<std::vector<T>> get_W()
+        {
+            return(W);
         }
         
 
@@ -750,10 +832,13 @@ int main(int argc, char* argv[])
     cout << "size of mtl vector is: " << size(x) << endl;
 
 
+#define DEBUG 0
     cout << "\n\nPoisson Solver:\n----------------\n";
     {
-        const int n= 4, m= 4;
-        double xa= 0, xb= 0.5, yc= 0, yd= 0.5;
+        //const int n= 4, m= 4;
+        const int n=100, m=100;
+        //double xa= 0, xb= 0.5, yc= 0, yd= 0.5;
+        double xa= -10, xb= 10, yc= -10, yd= 10;
         double h = (xb-xa)/n, k= (yd-yc)/m;
         //dense_vector<double> x(n+1, 0.0), y(m+1, 0.0);
         std::vector<double> x(n+1), y(m+1);
@@ -770,12 +855,15 @@ int main(int argc, char* argv[])
         compressed2D<double>   A((n-1)*(m-1), (n-1)*(m-1));
         // Laplace operator discretized on a 3x3 grid
         mat::laplacian_setup(A, n-1, m-1);
+#if DEBUG
         cout << "A is \n" << A;
+#endif
         cout << "size(A) is : " << mtl::mat::size(A) << endl;  // or just size(A)
         cout << "num_cols(A) is : " << mtl::mat::num_cols(A) << endl; 
         cout << "num_rows(A) is : " << num_rows(A) << endl;
 
         dense_vector<double> b((n-1)*(m-1) , 0.0);
+
         int l= 0;
         for ( int j= m-1; j >= 1; j-- ){
             for ( int i= 1; i < n; i++ ) {
@@ -787,7 +875,7 @@ int main(int argc, char* argv[])
         cout << "b is :" << b << "\n\n";
 
         /*  Store indices that are part of boundary, or are known, instead of Boundary class */
-
+#if DEBUG
         // single list
         cout << "single list:\n";
         std::list<int> list1 = {0, 1, 2, 3, 4, 5};
@@ -857,14 +945,14 @@ int main(int argc, char* argv[])
         cout << "\n\nVector of ints" << endl;
         std::vector<int> v1= {1,2,3,4,5,6,7,8,9};
         cout << v1;
-
+#endif
         // Build vector b in Ax = b
         // Function that accepts 1) difference equation Functor 2) list of boundary point indices, 
         // and known values for inner boundaries. Returns vector b.
         
-        dense2D<double> W((n+1),(m+1));
-        W = 0.0;
-        cout << "\n\n" << W;
+        //dense2D<double> W((n+1),(m+1));
+        //W = 0.0;
+        //cout << "\n\n" << W;
 
         cout << "\n\nconstant_f :";
         constant_f<double> One(1.0);
@@ -872,8 +960,12 @@ int main(int argc, char* argv[])
 
         cout << "\n\nPoisson Test:\n";
         constant_f zeroFunc(0.0);
-        vector<int> bidx = {0};
-        poisson_dif_eqn_f poissonSolver( zeroFunc, x, y, n, m, bidx, h, k );
+        //sinax_f<double> sinax(225.0);
+        sin_x2_y2_f<double> sinx2y2(25.0);
+
+        std::vector<int> bidx = {0};
+        //poisson_dif_eqn_f poissonSolver( zeroFunc, x, y, n, m, bidx, h, k );
+        poisson_dif_eqn_f poissonSolver( sinx2y2, x, y, n, m, bidx, h, k );
         dense_vector<double, mtl::vec::parameters<tag::col_major>> rhs_b = poissonSolver.get_rhsb();
         cout << "poissonSolver.get_rhsb() = " << poissonSolver.get_rhsb() << endl;
 
@@ -895,7 +987,14 @@ int main(int argc, char* argv[])
         bicgstab(A, solution, rhs_b, P, iter);
 
         cout << solution << endl;
+        cout << solution[0] << endl;
 
+        auto W = poissonSolver.get_W();
+        cout << " W : \n" << W;
+        cout << "W[0][0] : " <<  W[0][0] << endl;
+        build_matrix_solution(W, solution);
+        cout << " W final: \n" << W;
+        save("poissonSoln7.txt", W);
 
 
 
